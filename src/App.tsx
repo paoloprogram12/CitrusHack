@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Page, Tweaks, NavInner } from './shared';
 import { Landing } from './Landing';
-import { Dashboard } from './Dashboard';
+import { Dashboard } from './pages/Dashboard';
 import { Results, FindingDetail } from './Results';
 import { SafetyReport } from './Report';
 
