@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Page, Tweaks, accentMap, tokens } from 'shared';
+import { Page, Tweaks, accentMap, tokens } from './shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

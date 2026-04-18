@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Page, Tweaks, NavInner } from './shared';
-import { Landing } from './Landing';
+import { Page, Tweaks, NavInner } from './pages/shared';
+import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
-import { Results, FindingDetail } from './Results';
-import { SafetyReport } from './Report';
+import { Results, FindingDetail } from './pages/Results';
 
 // ─── Default tweaks ────────────────────────────────────────────────────────────
 
@@ -156,7 +155,6 @@ const AppShell: React.FC = () => {
       case 'dashboard': return <Dashboard    setPage={navigate} tweaks={tweaks} />;
       case 'results':   return <Results      setPage={navigate} />;
       case 'finding':   return <FindingDetail setPage={navigate} />;
-      case 'report':    return <SafetyReport  setPage={navigate} />;
       default:          return <Landing      setPage={navigate} tweaks={tweaks} />;
     }
   };
