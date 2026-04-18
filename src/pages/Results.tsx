@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Page, Severity, Finding, severityColor, tokens } from 'shared';
+import { Page, Severity, Finding, severityColor, tokens } from './shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
