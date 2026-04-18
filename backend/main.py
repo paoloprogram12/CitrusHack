@@ -1,11 +1,15 @@
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from google import genai
 from google.genai import types
+from dotenv import load_dotenv
 from PIL import Image
 import io
 import os
 import json
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -13,10 +17,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
-client = genai.Client(api_key="AIzaSyBLbVRiuPi3P_tBD0bRx1SMfU2cNdWrkOw")
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 SECURITY_PROMPT = """
 You are a hotel room security expert analyzing a room photo for travelers.
@@ -26,12 +30,12 @@ Carefully examine the image and identify:
    - Unusual lens reflections or glints
    - Small holes in walls, smoke detectors, clocks, or decorations
    - Devices that seem out of place (modified alarm clocks, air purifiers, USB chargers)
-   
+
 2. Security risks:
    - Broken or unsecured door locks
    - Blocked fire exits
    - Exposed wiring
-   
+
 3. Suspicious objects:
    - Devices you wouldn't normally find in a hotel room
    - Items positioned unusually (facing the bed or bathroom)
@@ -54,40 +58,76 @@ Respond ONLY with a valid JSON object in this exact format, no other text:
 }
 """
 
-@app.post("/scan")
-async def scan_room(file: UploadFile):
-    # 读取图片
-    contents = await file.read()
-    img = Image.open(io.BytesIO(contents))
-    img = img.convert('RGB')
-    img = img.convert('RGB')  # 去掉透明通道
-    
-    # 转成JPEG bytes
-    img_bytes = io.BytesIO()
-    img.save(img_bytes, format='JPEG')
-    img_bytes = img_bytes.getvalue()
-    
-    # 发给Gemini
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=[
-            types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
-            SECURITY_PROMPT
-        ]
-    )
-    
-    # 解析JSON结果
-    try:
-        result = json.loads(response.text)
-    except:
-        # 如果Gemini没有返回纯JSON，清理一下
-        text = response.text
-        start = text.find('{')
-        end = text.rfind('}') + 1
-        result = json.loads(text[start:end])
-    
-    return result
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+
+class Threat(BaseModel):
+    type: str
+    description: str
+    location: str
+    severity: str
+
+
+class ScanResult(BaseModel):
+    risk_level: str
+    risk_score: int
+    threats: list[Threat]
+    safe_items: list[str]
+    recommendation: str
+    summary: str
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 
 @app.get("/")
 def read_root():
     return {"message": "EyeSpy API is running"}
+
+
+@app.post("/scan", response_model=ScanResult)
+async def scan_room(file: UploadFile):
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{file.content_type}'. Upload a JPEG, PNG, WebP, or GIF.",
+        )
+
+    contents = await file.read()
+
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="Image exceeds 10 MB limit.")
+
+    img = Image.open(io.BytesIO(contents))
+    img = img.convert("RGB")
+
+    img_bytes_io = io.BytesIO()
+    img.save(img_bytes_io, format="JPEG")
+    img_bytes = img_bytes_io.getvalue()
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
+                SECURITY_PROMPT,
+            ],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gemini API error: {str(e)}")
+
+    try:
+        result = json.loads(response.text)
+    except json.JSONDecodeError:
+        text = response.text
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start == -1 or end == 0:
+            raise HTTPException(status_code=502, detail="Gemini returned unparseable response.")
+        result = json.loads(text[start:end])
+
+    return result
