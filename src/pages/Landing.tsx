@@ -114,14 +114,6 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
         background: `radial-gradient(circle, ${accent.glow.replace('0.35', '0.12')} 0%, transparent 65%)`,
       }} />
 
-      {/* Status bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '28px 48px 0', position: 'relative', zIndex: 2 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: tokens.green, boxShadow: `0 0 8px ${tokens.green}`, display: 'inline-block', animation: 'pulse 2s infinite' }} />
-          <span style={{ fontFamily: tokens.fontMono, fontSize: 11, color: tokens.text3, letterSpacing: '0.1em' }}>AI ENGINE ONLINE</span>
-        </div>
-      </div>
-
       {/* Hero */}
       <div style={{ textAlign: 'center', padding: '52px 48px 44px', position: 'relative', zIndex: 2 }}>
         {/* Badge */}
