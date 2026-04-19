@@ -204,7 +204,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
                 <div style={{ fontFamily: tokens.fontMono, fontSize: 11, color: tokens.violet, letterSpacing: '0.1em', marginBottom: 4 }}>SCAN COMPLETE — {findings.length} FINDINGS</div>
                 <div style={{ fontSize: 14, color: tokens.text2 }}>1 critical threat detected. Immediate action recommended.</div>
               </div>
-              <button className="btn-primary" onClick={() => setPage('results')} style={{ flexShrink: 0 }}>View Full Report →</button>
+              <button className="btn-primary" onClick={() => setPage('results')} style={{ flexShrink: 0 }}>View Results →</button>
             </div>
           )}
         </div>
