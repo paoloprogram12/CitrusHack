@@ -98,7 +98,11 @@ Example: [{{"label": "hidden camera lens", "box_2d": [120, 450, 160, 490]}}]
 Only include items you can visually confirm and precisely locate. Return [] if nothing found."""
 
 
-def run_bbox_detection(client, contents: list, threat_types: list[str]) -> dict[str, list[int]]:
+def _word_overlap(a: str, b: str) -> int:
+    return len(set(a.split()) & set(b.split()))
+
+
+def run_bbox_detection(client, contents: list, threat_types: list[str]) -> dict[str, list[list[int]]]:
     if not threat_types:
         return {}
     prompt = DETECTION_PROMPT_TEMPLATE.format(items=", ".join(threat_types))
@@ -107,39 +111,82 @@ def run_bbox_detection(client, contents: list, threat_types: list[str]) -> dict[
             model="gemini-2.5-flash",
             contents=contents + [prompt],
         )
+        print("[bbox] raw response:", resp.text[:300])
         detections = parse_gemini_json(resp.text)
         if not isinstance(detections, list):
+            print("[bbox] response was not a list:", type(detections))
             return {}
-        result = {}
+        result: dict[str, list[list[int]]] = {}
         for d in detections:
-            if "label" in d and "box_2d" in d and isinstance(d["box_2d"], list) and len(d["box_2d"]) == 4:
-                result[d["label"].lower()] = d["box_2d"]
+            if "label" in d and "box_2d" in d and isinstance(d["box_2d"], list) and len(d["box_2d"]) >= 4:
+                coords = [int(v) for v in d["box_2d"][:4]]
+                ymin, xmin, ymax, xmax = coords
+                if ymin >= ymax or xmin >= xmax:
+                    print(f"[bbox] rejected inverted coords: {coords}")
+                    continue
+                result.setdefault(d["label"].lower(), []).append([ymin, xmin, ymax, xmax])
+        print("[bbox] detections:", result)
         return result
-    except Exception:
+    except Exception as e:
+        print("[bbox] exception:", e)
         return {}
 
 
-def merge_bboxes(threats: list[dict], bboxes: dict[str, list[int]]) -> list[dict]:
+def merge_bboxes(threats: list[dict], bboxes: dict[str, list[list[int]]]) -> list[dict]:
+    # Make mutable copies of each bbox list so we can pop as we assign
+    remaining = {k: list(v) for k, v in bboxes.items()}
     for threat in threats:
         ttype = threat.get("type", "").lower()
-        matched = next((v for k, v in bboxes.items() if k in ttype or ttype in k), None)
-        if matched:
-            ymin, xmin, ymax, xmax = matched
-            threat["bbox"] = [ymin, xmin, ymax, xmax]
+        matched_key = next((k for k in remaining if k in ttype or ttype in k), None)
+        if matched_key is None:
+            best_k, best_score = None, 0
+            for k in remaining:
+                score = _word_overlap(k, ttype)
+                if score > best_score:
+                    best_k, best_score = k, score
+            if best_k and best_score > 0:
+                matched_key = best_k
+        if matched_key and remaining[matched_key]:
+            threat["bbox"] = remaining[matched_key].pop(0)
+            if not remaining[matched_key]:
+                del remaining[matched_key]
         else:
             threat["bbox"] = None
+        print(f"[merge] '{ttype}' -> bbox={threat['bbox']}")
     return threats
 
 
-def parse_gemini_json(text: str) -> dict:
+def parse_gemini_json(text: str):
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        inner = []
+        for line in lines[1:]:
+            if line.strip() == "```":
+                break
+            inner.append(line)
+        stripped = "\n".join(inner).strip()
+
     try:
-        return json.loads(text)
+        return json.loads(stripped)
     except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        if start == -1 or end == 0:
-            raise HTTPException(status_code=502, detail="Gemini returned unparseable response.")
-        return json.loads(text[start:end])
+        pass
+
+    # Try to extract array first, then object
+    for open_c, close_c in [("[", "]"), ("{", "}")]:
+        start = text.find(open_c)
+        if start == -1:
+            continue
+        end = text.rfind(close_c) + 1
+        if end <= start:
+            continue
+        try:
+            return json.loads(text[start:end])
+        except json.JSONDecodeError:
+            continue
+
+    raise HTTPException(status_code=502, detail="Gemini returned unparseable response.")
 
 
 @app.get("/health")
