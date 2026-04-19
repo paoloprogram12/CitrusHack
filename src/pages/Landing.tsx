@@ -116,14 +116,6 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
 
       {/* Hero */}
       <div style={{ textAlign: 'center', padding: '52px 48px 44px', position: 'relative', zIndex: 2 }}>
-        {/* Badge */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24,
-          padding: '5px 16px', borderRadius: 20,
-          background: `${accent.primary}1a`, border: `1px solid ${accent.secondary}44`,
-        }}>
-          <span style={{ fontFamily: tokens.fontMono, fontSize: 11, color: accent.secondary, letterSpacing: '0.1em' }}>SELECT SCAN TYPE</span>
-        </div>
 
         {/* Heading + animated radar orb */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28, marginBottom: 16 }}>
