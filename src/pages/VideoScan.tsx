@@ -39,8 +39,11 @@ export const VideoScan: React.FC<VideoScanProps> = ({ setPage, setScanResult }) 
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => { fileRef.current?.click(); }, []);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
+    e.target.value = '';
     if (f) { setSelectedFile(f); setError(null); }
   };
 
@@ -143,10 +146,14 @@ export const VideoScan: React.FC<VideoScanProps> = ({ setPage, setScanResult }) 
                   )}
                   <div style={{ fontSize: 12, color: tokens.text3, marginBottom: 18 }}>MP4, MOV, WebM · Max 100 MB</div>
                   <button
-                    onClick={e => { e.stopPropagation(); startProcessing(); }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      if (selectedFile) startProcessing();
+                      else fileRef.current?.click();
+                    }}
                     style={{ background: 'linear-gradient(135deg, #0891b2, #06b6d4)', color: '#fff', border: 'none', borderRadius: 8, padding: '13px 32px', fontFamily: tokens.fontHead, fontWeight: 600, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 20px rgba(6,182,212,0.35)', transition: 'all 0.2s' }}
                   >
-                    {selectedFile ? 'Process Video →' : 'Select & Process →'}
+                    {selectedFile ? 'Process Video →' : 'Select Video →'}
                   </button>
                 </div>
               </div>

@@ -10,8 +10,7 @@ import os
 import json
 import tempfile
 import time
-
-load_dotenv()
+import logging
 
 load_dotenv()
 
