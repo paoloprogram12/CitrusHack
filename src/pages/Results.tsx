@@ -21,7 +21,6 @@ const ALL_FINDINGS: Finding[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toFindings(result: ScanResult): Finding[] {
-  const now = new Date().toLocaleTimeString('en-US', { hour12: false });
   return result.threats.map((t, i) => ({
     id: i + 1,
     type: t.type,
@@ -31,7 +30,6 @@ function toFindings(result: ScanResult): Finding[] {
     confidence: 0,
     desc: t.description,
     action: result.recommendation,
-    time: now,
   }));
 }
 
@@ -40,7 +38,7 @@ function toFindings(result: ScanResult): Finding[] {
 export const Results: React.FC<ResultsProps> = ({ scanResult }) => {
   const [filter, setFilter] = useState<FilterLevel>('ALL');
 
-  const findings = scanResult ? toFindings(scanResult) : MOCK_FINDINGS;
+  const findings = scanResult ? toFindings(scanResult) : ALL_FINDINGS;
   const score    = scanResult ? 100 - scanResult.risk_score : 38;
   const scoreColor = score < 40 ? tokens.red : score < 70 ? tokens.amber : tokens.green;
   const scoreLabel = score < 40 ? 'UNSAFE' : score < 70 ? 'CAUTION' : 'SAFE';
