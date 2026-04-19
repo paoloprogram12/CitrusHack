@@ -95,7 +95,7 @@ export const PhotoScan: React.FC<PhotoScanProps> = ({ setPage, setScanResult }) 
     const apiPromise = (async (): Promise<ScanResult> => {
       const form = new FormData();
       form.append('file', selectedFile);
-      const res = await fetch('http://localhost:8000/scan', { method: 'POST', body: form });
+      const res = await fetch('/api/scan', { method: 'POST', body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Scan failed' }));
         throw new Error(err.detail || 'Scan failed');

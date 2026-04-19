@@ -63,7 +63,7 @@ export const VideoScan: React.FC<VideoScanProps> = ({ setPage, setScanResult }) 
     form.append('file', selectedFile);
 
     try {
-      const res = await fetch('http://localhost:8000/scan/video', { method: 'POST', body: form });
+      const res = await fetch('/api/scan/video', { method: 'POST', body: form });
       clearInterval(progressInterval);
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Video scan failed' }));

@@ -120,7 +120,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage, setScanResult }) 
         const form = new FormData();
         form.append('file', blob, 'scan.webm');
         try {
-          const res = await fetch('http://localhost:8000/scan/video', { method: 'POST', body: form });
+          const res = await fetch('/api/scan/video', { method: 'POST', body: form });
           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Scan failed');
           const result = await res.json();
           setScanResult(result);
