@@ -8,6 +8,8 @@ from PIL import Image
 import io
 import os
 import json
+import tempfile
+import time
 
 load_dotenv()
 
@@ -23,9 +25,9 @@ app.add_middleware(
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 SECURITY_PROMPT = """
-You are a hotel room security expert analyzing a room photo for travelers.
+You are a hotel room security expert analyzing a room for travelers.
 
-Carefully examine the image and identify:
+Carefully examine the content and identify:
 1. Hidden camera indicators:
    - Unusual lens reflections or glints
    - Small holes in walls, smoke detectors, clocks, or decorations
@@ -58,9 +60,14 @@ Respond ONLY with a valid JSON object in this exact format, no other text:
 }
 """
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10 MB
+MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100 MB
 
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/x-msvideo"}
+
+VIDEO_POLL_INTERVAL = 2   # seconds between state checks
+VIDEO_POLL_TIMEOUT = 120  # seconds before giving up
 
 
 class Threat(BaseModel):
@@ -79,6 +86,17 @@ class ScanResult(BaseModel):
     summary: str
 
 
+def parse_gemini_json(text: str) -> dict:
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start == -1 or end == 0:
+            raise HTTPException(status_code=502, detail="Gemini returned unparseable response.")
+        return json.loads(text[start:end])
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -90,8 +108,8 @@ def read_root():
 
 
 @app.post("/scan", response_model=ScanResult)
-async def scan_room(file: UploadFile):
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
+async def scan_image(file: UploadFile):
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
             status_code=415,
             detail=f"Unsupported file type '{file.content_type}'. Upload a JPEG, PNG, WebP, or GIF.",
@@ -99,7 +117,7 @@ async def scan_room(file: UploadFile):
 
     contents = await file.read()
 
-    if len(contents) > MAX_FILE_SIZE:
+    if len(contents) > MAX_IMAGE_SIZE:
         raise HTTPException(status_code=413, detail="Image exceeds 10 MB limit.")
 
     img = Image.open(io.BytesIO(contents))
@@ -120,14 +138,68 @@ async def scan_room(file: UploadFile):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Gemini API error: {str(e)}")
 
-    try:
-        result = json.loads(response.text)
-    except json.JSONDecodeError:
-        text = response.text
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        if start == -1 or end == 0:
-            raise HTTPException(status_code=502, detail="Gemini returned unparseable response.")
-        result = json.loads(text[start:end])
+    return parse_gemini_json(response.text)
 
-    return result
+
+@app.post("/scan/video", response_model=ScanResult)
+async def scan_video(file: UploadFile):
+    if file.content_type not in ALLOWED_VIDEO_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported file type '{file.content_type}'. Upload an MP4, MOV, WebM, or AVI.",
+        )
+
+    contents = await file.read()
+
+    if len(contents) > MAX_VIDEO_SIZE:
+        raise HTTPException(status_code=413, detail="Video exceeds 100 MB limit.")
+
+    # Write to a temp file so the Gemini Files API can upload it
+    suffix = "." + (file.filename or "video.mp4").rsplit(".", 1)[-1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(contents)
+        tmp_path = tmp.name
+
+    gemini_file = None
+    try:
+        # Upload to Gemini Files API
+        try:
+            gemini_file = client.files.upload(
+                file=tmp_path,
+                config=types.UploadFileConfig(mime_type=file.content_type),
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Gemini file upload error: {str(e)}")
+
+        # Poll until the file is ready
+        elapsed = 0
+        while gemini_file.state.name == "PROCESSING":
+            if elapsed >= VIDEO_POLL_TIMEOUT:
+                raise HTTPException(status_code=504, detail="Timed out waiting for Gemini to process video.")
+            time.sleep(VIDEO_POLL_INTERVAL)
+            elapsed += VIDEO_POLL_INTERVAL
+            gemini_file = client.files.get(name=gemini_file.name)
+
+        if gemini_file.state.name == "FAILED":
+            raise HTTPException(status_code=502, detail="Gemini failed to process the video.")
+
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[
+                    types.Part.from_uri(file_uri=gemini_file.uri, mime_type=file.content_type),
+                    SECURITY_PROMPT,
+                ],
+            )
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Gemini API error: {str(e)}")
+
+    finally:
+        os.unlink(tmp_path)
+        if gemini_file:
+            try:
+                client.files.delete(name=gemini_file.name)
+            except Exception:
+                pass  # non-fatal cleanup failure
+
+    return parse_gemini_json(response.text)
