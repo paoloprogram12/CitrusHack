@@ -7,16 +7,6 @@ interface ResultsProps {
 
 type FilterLevel = 'ALL' | Severity;
 
-// ─── Mock data (shown when no real scan result is available) ──────────────────
-
-const ALL_FINDINGS: Finding[] = [
-  { id: 1, type: 'Hidden Camera',      category: 'surveillance', severity: 'CRITICAL', location: 'Clock radio — nightstand (left)',    confidence: 97, desc: 'Pinhole camera lens detected via IR reflection analysis. Orientation suggests coverage of bed area.',                                            action: 'Cover immediately. Contact hotel management and local authorities.' },
-  { id: 2, type: 'Unknown Device',     category: 'network',      severity: 'HIGH',     location: 'Air purifier — northeast corner',     confidence: 84, desc: 'Unrecognized RF transmitter detected inside air purifier chassis. Emitting on 2.4GHz band.',                                                action: 'Do not use device. Move to hallway or unplug.' },
-  { id: 3, type: 'Lock Vulnerability', category: 'access',       severity: 'HIGH',     location: 'Connecting room door',                confidence: 91, desc: 'Secondary deadbolt is non-functional. Connecting door presents unauthorized entry risk.',                                                action: 'Block with furniture. Request room change or additional security.' },
-  { id: 4, type: 'Smoke Detector',     category: 'fire',         severity: 'MEDIUM',   location: 'Bathroom — none detected',            confidence: 99, desc: 'No smoke detector found in bathroom area. Fire code violation in most jurisdictions.',                                                    action: 'Notify hotel management. Locate nearest fire exit manually.' },
-  { id: 5, type: 'Exposed Wiring',     category: 'electrical',   severity: 'MEDIUM',   location: 'Behind TV console',                   confidence: 78, desc: 'Frayed lamp cable with exposed copper detected near flammable surface.',                                                                  action: 'Do not use lamp. Report to hotel maintenance immediately.' },
-  { id: 6, type: 'RF Signal Anomaly',  category: 'network',      severity: 'LOW',      location: 'Minibar area',                        confidence: 61, desc: 'Low-power Bluetooth signal detected from within minibar. Could be inventory sensor.',                                                    action: 'Likely benign. Monitor for sustained high-power transmission.' },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,8 +28,8 @@ function toFindings(result: ScanResult): Finding[] {
 export const Results: React.FC<ResultsProps> = ({ scanResult }) => {
   const [filter, setFilter] = useState<FilterLevel>('ALL');
 
-  const findings = scanResult ? toFindings(scanResult) : ALL_FINDINGS;
-  const score    = scanResult ? 100 - scanResult.risk_score : 38;
+  const findings = scanResult ? toFindings(scanResult) : [];
+  const score    = scanResult ? 100 - scanResult.risk_score : 100;
   const scoreColor = score < 40 ? tokens.red : score < 70 ? tokens.amber : tokens.green;
   const scoreLabel = score < 40 ? 'UNSAFE' : score < 70 ? 'CAUTION' : 'SAFE';
 

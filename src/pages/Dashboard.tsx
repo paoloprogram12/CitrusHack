@@ -33,16 +33,16 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ scanState }) => (
 
 
 const CHECKS = [
-  'Initializing AI vision model…',
-  'Scanning for RF transmissions…',
-  'Analyzing visual field for lens reflections…',
-  'Checking smoke detector placement…',
-  'Mapping door & lock hardware…',
-  'Identifying unknown electronic devices…',
-  'Running wiring hazard analysis…',
-  'Cross-referencing property database…',
-  'Generating threat assessment…',
-  'Compiling safety report…',
+  'Searching…',
+  'Searching…',
+  'Searching…',
+  'Searching…',
+  'Searching…',
+  'Searching…',
+  'Searching…',
+  'Searching…',
+  'Searching…',
+  'Searching…',
 ];
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
