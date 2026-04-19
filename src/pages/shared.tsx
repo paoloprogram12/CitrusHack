@@ -73,6 +73,25 @@ export const severityColor = (s: Severity): string => {
   return tokens.green;
 };
 
+// ─── Backend API types ────────────────────────────────────────────────────────
+
+export interface BackendThreat {
+  type: string;
+  description: string;
+  location: string;
+  severity: string;
+  bbox?: [number, number, number, number] | null; // [ymin, xmin, ymax, xmax] 0-1000 (Gemini native)
+}
+
+export interface ScanResult {
+  risk_level: string;
+  risk_score: number;
+  threats: BackendThreat[];
+  safe_items: string[];
+  recommendation: string;
+  summary: string;
+}
+
 // ─── Finding type ─────────────────────────────────────────────────────────────
 
 export interface Finding {
