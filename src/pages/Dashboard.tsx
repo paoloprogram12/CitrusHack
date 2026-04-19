@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Page, Tweaks, Severity, Finding, severityColor, tokens } from './shared';
+import { Page, Tweaks, Severity, Finding, ScanResult, severityColor, tokens } from './shared';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DashboardProps {
   setPage: (p: Page) => void;
+  setScanResult: (r: ScanResult) => void;
   tweaks?: Tweaks;
 }
 
-type ScanState = 'idle' | 'scanning' | 'complete';
+type ScanState = 'idle' | 'scanning' | 'processing' | 'complete';
 
 // ─── Camera Feed placeholder ───────────────────────────────────────────────────
 // TODO: Replace this component with your own camera implementation.
@@ -54,14 +55,17 @@ const CHECKS = [
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [stream, setStream] =useState<MediaStream | null>(null)
+export const Dashboard: React.FC<DashboardProps> = ({ setPage, setScanResult }) => {
+  const videoRef    = useRef<HTMLVideoElement>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef   = useRef<Blob[]>([])
+  const [stream, setStream]       = useState<MediaStream | null>(null)
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [progress, setProgress]   = useState(0);
   const [currentCheck, setCurrentCheck] = useState('');
   const [tick, setTick]           = useState(0);
   const [findings, setFindings]   = useState<Finding[]>([]);
+  const [apiError, setApiError]   = useState<string | null>(null);
 
   // Start camera on mount
   useEffect(() => {
@@ -88,10 +92,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
       setProgress(p => {
         if (p >= 100) {
           clearInterval(id);
+          // Stop recorder — ondataavailable fires, then onstop sends to backend
+          recorderRef.current?.stop();
+          recorderRef.current = null;
           stream?.getTracks().forEach(t => t.stop());
           setStream(null);
-                    setScanState('complete');
-          setFindings(MOCK_FINDINGS);
+          setScanState('processing');
           return 100;
         }
         const next = p + 1.1;
@@ -113,22 +119,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
         videoRef.current.srcObject = s;
         videoRef.current.play();
       }
+      // Start recording
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(s);
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        const form = new FormData();
+        form.append('file', blob, 'scan.webm');
+        try {
+          const res = await fetch('http://localhost:8000/scan/video', { method: 'POST', body: form });
+          if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Scan failed');
+          const result = await res.json();
+          setScanResult(result);
+          setFindings(MOCK_FINDINGS);
+          setScanState('complete');
+        } catch (e: any) {
+          setApiError(e.message || 'Backend scan failed');
+          setFindings(MOCK_FINDINGS);
+          setScanState('complete');
+        }
+      };
+      recorderRef.current = recorder;
+      recorder.start();
     } catch {
       alert('Camera permission denied');
+      return;
     }
     setScanState('scanning');
     setProgress(0);
     setFindings([]);
+    setApiError(null);
     setCurrentCheck(CHECKS[0]);
   };
 
   const resetScan = () => {
+    recorderRef.current?.stop();
+    recorderRef.current = null;
     stream?.getTracks().forEach(t => t.stop());
     if (videoRef.current) videoRef.current.srcObject = null;
     setStream(null);
-        setScanState('idle');
+    setScanState('idle');
     setProgress(0);
     setFindings([]);
+    setApiError(null);
   };
 
   const severityBadgeClass = (s: Severity) =>
@@ -205,7 +239,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
             <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(7,7,13,0.75)', backdropFilter: 'blur(10px)', border: `1px solid ${tokens.border}`, borderRadius: 20, padding: '5px 14px', zIndex: 7 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', display: 'inline-block', background: scanState === 'scanning' ? tokens.red : scanState === 'complete' ? tokens.green : tokens.text3, boxShadow: scanState === 'scanning' ? `0 0 8px ${tokens.red}` : 'none', animation: scanState === 'scanning' ? 'blink 1s infinite' : 'none' }} />
               <span style={{ fontFamily: tokens.fontMono, fontSize: 10, color: tokens.text2, letterSpacing: '0.08em' }}>
-                {scanState === 'idle' ? 'CAMERA READY' : scanState === 'scanning' ? 'SCANNING' : 'SCAN COMPLETE'}
+                {scanState === 'idle' ? 'CAMERA READY' : scanState === 'scanning' ? 'SCANNING' : scanState === 'processing' ? 'ANALYZING…' : 'SCAN COMPLETE'}
               </span>
             </div>
 
@@ -238,7 +272,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
             <div className="card-bright" style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontFamily: tokens.fontMono, fontSize: 11, color: tokens.violet, letterSpacing: '0.1em', marginBottom: 4 }}>SCAN COMPLETE — {findings.length} FINDINGS</div>
-                <div style={{ fontSize: 14, color: tokens.text2 }}>1 critical threat detected. Immediate action recommended.</div>
+                <div style={{ fontSize: 14, color: apiError ? tokens.red : tokens.text2 }}>{apiError ?? '1 critical threat detected. Immediate action recommended.'}</div>
               </div>
               <button className="btn-primary" onClick={() => setPage('results')} style={{ flexShrink: 0 }}>View Results →</button>
             </div>
