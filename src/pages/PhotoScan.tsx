@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { Page, tokens } from './shared';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import React, { useState, useRef, useEffect } from 'react';
+import { Page, ScanResult, tokens } from './shared';
 
 interface PhotoScanProps {
   setPage: (p: Page) => void;
+  setScanResult: (r: ScanResult) => void;
 }
 
 type Phase = 'capture' | 'analyzing' | 'done';
@@ -24,36 +23,94 @@ const CHECK_LIST: Check[] = [
 
 const corners = ['tl', 'tr', 'bl', 'br'] as const;
 
-// ─── PhotoScan ────────────────────────────────────────────────────────────────
+export const PhotoScan: React.FC<PhotoScanProps> = ({ setPage, setScanResult }) => {
+  const [phase, setPhase]             = useState<Phase>('capture');
+  const [progress, setProgress]       = useState(0);
+  const [checks, setChecks]           = useState<Check[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError]             = useState<string | null>(null);
+  const [imageUrl, setImageUrl]       = useState<string | null>(null);
+  const [localResult, setLocalResult] = useState<ScanResult | null>(null);
+  const [imageBounds, setImageBounds] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const fileRef                       = useRef<HTMLInputElement>(null);
+  const imgRef                        = useRef<HTMLImageElement>(null);
+  const viewportRef                   = useRef<HTMLDivElement>(null);
 
-export const PhotoScan: React.FC<PhotoScanProps> = ({ setPage }) => {
-  const [phase, setPhase]       = useState<Phase>('capture');
-  const [progress, setProgress] = useState(0);
-  const [checks, setChecks]     = useState<Check[]>([]);
+  useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
 
-  const startAnalysis = () => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) {
+      setSelectedFile(f);
+      setError(null);
+      if (imageUrl) URL.revokeObjectURL(imageUrl);
+      setImageUrl(URL.createObjectURL(f));
+      setImageBounds(null);
+      setLocalResult(null);
+    }
+  };
+
+  const computeImageBounds = () => {
+    const img = imgRef.current;
+    const vp  = viewportRef.current;
+    if (!img || !vp) return;
+    const cw = vp.clientWidth;
+    const ch = vp.clientHeight;
+    const nr = img.naturalWidth / img.naturalHeight;
+    const cr = cw / ch;
+    if (nr > cr) {
+      const ih = cw / nr;
+      setImageBounds({ x: 0, y: (ch - ih) / 2, w: cw, h: ih });
+    } else {
+      const iw = ch * nr;
+      setImageBounds({ x: (cw - iw) / 2, y: 0, w: iw, h: ch });
+    }
+  };
+
+  const startAnalysis = async () => {
+    if (!selectedFile) { setError('Please select an image first.'); return; }
+    setError(null);
     setPhase('analyzing');
     setChecks(CHECK_LIST.map(c => ({ ...c, status: 'pending' })));
 
-    let i = 0;
+    // Animate checks concurrently with the real API call
+    const animationPromise = new Promise<void>(resolve => {
+      let i = 0;
+      const next = () => {
+        if (i >= CHECK_LIST.length) { resolve(); return; }
+        setChecks(prev => prev.map((c, idx) => idx === i ? { ...c, status: 'running' } : c));
+        setTimeout(() => {
+          setChecks(prev => prev.map((c, idx) => idx === i ? { ...c, status: 'done' } : c));
+          setProgress(Math.round(((i + 1) / CHECK_LIST.length) * 100));
+          i++;
+          setTimeout(next, 400);
+        }, 900);
+      };
+      setTimeout(next, 300);
+    });
 
-    const next = () => {
-      if (i >= CHECK_LIST.length) {
-        setTimeout(() => setPhase('done'), 600);
-        return;
+    const apiPromise = (async (): Promise<ScanResult> => {
+      const form = new FormData();
+      form.append('file', selectedFile);
+      const res = await fetch('http://localhost:8000/scan', { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Scan failed' }));
+        throw new Error(err.detail || 'Scan failed');
       }
+      return res.json();
+    })();
 
-      setChecks(prev => prev.map((c, idx) => idx === i ? { ...c, status: 'running' } : c));
-
-      setTimeout(() => {
-        setChecks(prev => prev.map((c, idx) => idx === i ? { ...c, status: 'done' } : c));
-        setProgress(Math.round(((i + 1) / CHECK_LIST.length) * 100));
-        i++;
-        setTimeout(next, 400);
-      }, 900);
-    };
-
-    setTimeout(next, 300);
+    try {
+      const [, result] = await Promise.all([animationPromise, apiPromise]);
+      setScanResult(result);
+      setLocalResult(result);
+      setPhase('done');
+    } catch (e: any) {
+      setError(e.message || 'Failed to scan image. Is the backend running?');
+      setPhase('capture');
+      setChecks([]);
+      setProgress(0);
+    }
   };
 
   return (
@@ -70,17 +127,51 @@ export const PhotoScan: React.FC<PhotoScanProps> = ({ setPage }) => {
         </div>
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div style={{ marginBottom: 20, padding: '10px 16px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: `1px solid rgba(239,68,68,0.3)`, color: tokens.red, fontSize: 13, fontFamily: tokens.fontBody }}>
+          {error}
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, flex: 1 }}>
 
         {/* ── Viewport ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{
-            flex: 1, borderRadius: 14, minHeight: 340, position: 'relative', overflow: 'hidden', cursor: phase === 'capture' ? 'pointer' : 'default',
-            border: `2px dashed ${phase === 'capture' ? tokens.borderBright : tokens.border}`,
-            background: tokens.surface1, transition: 'all 0.3s',
-          }}>
-            {/* Background */}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #0e0e1c, #13132a)', backgroundImage: `linear-gradient(rgba(130,80,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(130,80,255,0.03) 1px, transparent 1px)`, backgroundSize: '28px 28px' }} />
+          <div
+            ref={viewportRef}
+            style={{
+              flex: 1, borderRadius: 14, minHeight: 340, position: 'relative', overflow: 'hidden',
+              cursor: phase === 'capture' ? 'pointer' : 'default',
+              border: `2px dashed ${phase === 'capture' ? tokens.borderBright : tokens.border}`,
+              background: tokens.surface1, transition: 'all 0.3s',
+            }}
+            onClick={() => phase === 'capture' && fileRef.current?.click()}
+          >
+            {/* Hidden file input */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              style={{ display: 'none' }}
+              onChange={handleFileSelect}
+            />
+
+            {/* Background grid (shown when no image) */}
+            {!imageUrl && (
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #0e0e1c, #13132a)', backgroundImage: `linear-gradient(rgba(130,80,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(130,80,255,0.03) 1px, transparent 1px)`, backgroundSize: '28px 28px' }} />
+            )}
+
+            {/* Uploaded image */}
+            {imageUrl && (
+              <img
+                ref={imgRef}
+                src={imageUrl}
+                onLoad={computeImageBounds}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', zIndex: 1 }}
+                alt="scan target"
+              />
+            )}
 
             {/* Capture state */}
             {phase === 'capture' && (
@@ -94,38 +185,66 @@ export const PhotoScan: React.FC<PhotoScanProps> = ({ setPage }) => {
                   </svg>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontFamily: tokens.fontHead, fontSize: 15, fontWeight: 600, color: tokens.text, marginBottom: 6 }}>Drop photo or tap to capture</div>
-                  <div style={{ fontSize: 12, color: tokens.text3 }}>JPG, PNG, HEIC · Max 20MB</div>
+                  {selectedFile ? (
+                    <div style={{ fontFamily: tokens.fontHead, fontSize: 15, fontWeight: 600, color: tokens.green, marginBottom: 4 }}>
+                      {selectedFile.name}
+                    </div>
+                  ) : (
+                    <div style={{ fontFamily: tokens.fontHead, fontSize: 15, fontWeight: 600, color: tokens.text, marginBottom: 6 }}>
+                      Click to select a photo
+                    </div>
+                  )}
+                  <div style={{ fontSize: 12, color: tokens.text3 }}>JPG, PNG, WebP · Max 10 MB</div>
                 </div>
-                <button className="btn-primary" onClick={startAnalysis} style={{ fontSize: 14 }}>Analyze Photo →</button>
+                <button
+                  className="btn-primary"
+                  onClick={e => { e.stopPropagation(); startAnalysis(); }}
+                  style={{ fontSize: 14 }}
+                >
+                  {selectedFile ? 'Analyze Photo →' : 'Select & Analyze →'}
+                </button>
               </div>
             )}
 
-            {/* Analyzing state */}
+            {/* Analyzing overlay */}
             {phase === 'analyzing' && (
               <>
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${tokens.violet}, transparent)`, animation: 'scanline 1.4s linear infinite', boxShadow: `0 0 10px ${tokens.violet}`, zIndex: 3 }} />
-                {/* Detection box */}
-                <div style={{ position: 'absolute', top: '22%', left: '58%', width: '18%', height: '24%', border: `1.5px solid ${tokens.red}`, boxShadow: `0 0 12px rgba(239,68,68,0.4)`, borderRadius: 2, zIndex: 2 }}>
-                  <div style={{ position: 'absolute', top: -18, left: 0, fontSize: 9, color: tokens.red, fontFamily: tokens.fontMono, background: 'rgba(239,68,68,0.15)', padding: '2px 5px', borderRadius: 3, whiteSpace: 'nowrap' }}>CAMERA DETECTED</div>
-                </div>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, background: 'rgba(7,7,13,0.45)' }}>
                   <div style={{ fontFamily: tokens.fontMono, fontSize: 12, color: tokens.violet, animation: 'blink 1s infinite' }}>ANALYZING IMAGE…</div>
                 </div>
               </>
             )}
 
-            {/* Done state */}
-            {phase === 'done' && (
-              <>
-                <div style={{ position: 'absolute', top: '22%', left: '58%', width: '18%', height: '24%', border: `1.5px solid ${tokens.red}`, boxShadow: `0 0 12px rgba(239,68,68,0.4)`, borderRadius: 2, zIndex: 2 }}>
-                  <div style={{ position: 'absolute', top: -18, left: 0, fontSize: 9, color: tokens.red, fontFamily: tokens.fontMono, background: 'rgba(239,68,68,0.15)', padding: '2px 5px', borderRadius: 3, whiteSpace: 'nowrap' }}>CAMERA DETECTED</div>
+            {/* Done state — real bounding boxes from Gemini */}
+            {phase === 'done' && imageBounds && localResult?.threats.map((threat, i) => {
+              if (!threat.bbox) return null;
+              // Gemini native format: [ymin, xmin, ymax, xmax] in 0-1000 scale
+              const [ymin, xmin, ymax, xmax] = threat.bbox;
+              const top    = ymin / 10;
+              const left   = xmin / 10;
+              const width  = (xmax - xmin) / 10;
+              const height = (ymax - ymin) / 10;
+              const color = threat.severity === 'HIGH' || threat.severity === 'CRITICAL' ? tokens.red : tokens.amber;
+              const boxStyle: React.CSSProperties = {
+                position: 'absolute',
+                top:    imageBounds.y + (top    / 100) * imageBounds.h,
+                left:   imageBounds.x + (left   / 100) * imageBounds.w,
+                width:                  (width  / 100) * imageBounds.w,
+                height:                 (height / 100) * imageBounds.h,
+                border: `1.5px solid ${color}`,
+                boxShadow: `0 0 12px ${color}66`,
+                borderRadius: 2,
+                zIndex: 2,
+              };
+              return (
+                <div key={i} style={boxStyle}>
+                  <div style={{ position: 'absolute', top: -18, left: 0, fontSize: 9, color, fontFamily: tokens.fontMono, background: `${color}22`, padding: '2px 5px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+                    {threat.type.toUpperCase()}
+                  </div>
                 </div>
-                <div style={{ position: 'absolute', bottom: '18%', left: '15%', width: '14%', height: '18%', border: `1.5px solid ${tokens.amber}`, boxShadow: `0 0 10px rgba(245,158,11,0.4)`, borderRadius: 2, zIndex: 2 }}>
-                  <div style={{ position: 'absolute', top: -18, left: 0, fontSize: 9, color: tokens.amber, fontFamily: tokens.fontMono, background: 'rgba(245,158,11,0.15)', padding: '2px 5px', borderRadius: 3, whiteSpace: 'nowrap' }}>UNKNOWN DEVICE</div>
-                </div>
-              </>
-            )}
+              );
+            })}
 
             {/* Corner brackets */}
             {corners.map(c => (

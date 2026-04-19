@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Severity, Finding, severityColor, tokens } from './shared';
+import { Severity, Finding, ScanResult, severityColor, tokens } from './shared';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+interface ResultsProps {
+  scanResult: ScanResult | null;
+}
 
 type FilterLevel = 'ALL' | Severity;
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
+// ─── Mock data (shown when no real scan result is available) ──────────────────
 
 const ALL_FINDINGS: Finding[] = [
   { id: 1, type: 'Hidden Camera',      category: 'surveillance', severity: 'CRITICAL', location: 'Clock radio — nightstand (left)',    confidence: 97, desc: 'Pinhole camera lens detected via IR reflection analysis. Orientation suggests coverage of bed area.',                                            action: 'Cover immediately. Contact hotel management and local authorities.' },
@@ -16,24 +18,43 @@ const ALL_FINDINGS: Finding[] = [
   { id: 6, type: 'RF Signal Anomaly',  category: 'network',      severity: 'LOW',      location: 'Minibar area',                        confidence: 61, desc: 'Low-power Bluetooth signal detected from within minibar. Could be inventory sensor.',                                                    action: 'Likely benign. Monitor for sustained high-power transmission.' },
 ];
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function toFindings(result: ScanResult): Finding[] {
+  const now = new Date().toLocaleTimeString('en-US', { hour12: false });
+  return result.threats.map((t, i) => ({
+    id: i + 1,
+    type: t.type,
+    category: t.type.toLowerCase().replace(/\s+/g, '-'),
+    severity: t.severity as Severity,
+    location: t.location,
+    confidence: 0,
+    desc: t.description,
+    action: result.recommendation,
+    time: now,
+  }));
+}
+
 // ─── Results ──────────────────────────────────────────────────────────────────
 
-export const Results: React.FC = () => {
+export const Results: React.FC<ResultsProps> = ({ scanResult }) => {
   const [filter, setFilter] = useState<FilterLevel>('ALL');
 
-  const score = 38;
+  const findings = scanResult ? toFindings(scanResult) : MOCK_FINDINGS;
+  const score    = scanResult ? 100 - scanResult.risk_score : 38;
   const scoreColor = score < 40 ? tokens.red : score < 70 ? tokens.amber : tokens.green;
+  const scoreLabel = score < 40 ? 'UNSAFE' : score < 70 ? 'CAUTION' : 'SAFE';
 
   const severityBadgeClass = (s: Severity) =>
     s === 'CRITICAL' ? 'badge-red' : s === 'HIGH' ? 'badge-amber' : s === 'MEDIUM' ? 'badge-purple' : 'badge-green';
 
-  const filtered = ALL_FINDINGS.filter(f => filter === 'ALL' || f.severity === filter);
+  const filtered = findings.filter(f => filter === 'ALL' || f.severity === filter);
 
-  const statCards: { label: string; val: number; color: string; sev: Severity | 'CRITICAL' }[] = [
-    { label: 'Critical', val: 1, color: tokens.red,    sev: 'CRITICAL' },
-    { label: 'High',     val: 2, color: tokens.amber,  sev: 'HIGH'     },
-    { label: 'Medium',   val: 2, color: tokens.violet, sev: 'MEDIUM'   },
-    { label: 'Low',      val: 1, color: tokens.green,  sev: 'LOW'      },
+  const statCards: { label: string; val: number; color: string; sev: Severity }[] = [
+    { label: 'Critical', val: findings.filter(f => f.severity === 'CRITICAL').length, color: tokens.red,    sev: 'CRITICAL' },
+    { label: 'High',     val: findings.filter(f => f.severity === 'HIGH').length,     color: tokens.amber,  sev: 'HIGH'     },
+    { label: 'Medium',   val: findings.filter(f => f.severity === 'MEDIUM').length,   color: tokens.violet, sev: 'MEDIUM'   },
+    { label: 'Low',      val: findings.filter(f => f.severity === 'LOW').length,      color: tokens.green,  sev: 'LOW'      },
   ];
 
   const filters: FilterLevel[] = ['ALL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
@@ -41,12 +62,23 @@ export const Results: React.FC = () => {
   return (
     <div style={{ padding: '40px 48px', minHeight: '100vh' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
           <div style={{ fontFamily: tokens.fontMono, fontSize: 11, color: tokens.violet, letterSpacing: '0.12em', marginBottom: 8 }}>SCAN RESULTS</div>
           <h1 style={{ fontFamily: tokens.fontHead, fontSize: 28, fontWeight: 700, letterSpacing: '-0.01em', color: tokens.text }}>Threat Analysis</h1>
         </div>
       </div>
+
+      {/* Summary card (real scans only) */}
+      {scanResult && (
+        <div className="card" style={{ padding: '16px 20px', marginBottom: 24, borderLeft: `3px solid ${scoreColor}` }}>
+          <div style={{ fontSize: 11, fontFamily: tokens.fontMono, color: tokens.text3, marginBottom: 8, letterSpacing: '0.1em' }}>SUMMARY</div>
+          <p style={{ fontSize: 13, color: tokens.text2, lineHeight: 1.6, marginBottom: 10 }}>{scanResult.summary}</p>
+          <div style={{ fontSize: 12, color: scoreColor, background: `${scoreColor}11`, padding: '8px 12px', borderRadius: 6, border: `1px solid ${scoreColor}22` }}>
+            → {scanResult.recommendation}
+          </div>
+        </div>
+      )}
 
       {/* Score row */}
       <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 1fr 1fr 1fr', gap: 16, marginBottom: 28 }}>
@@ -69,7 +101,7 @@ export const Results: React.FC = () => {
               <span style={{ fontSize: 9, color: tokens.text3, fontFamily: tokens.fontMono }}>/100</span>
             </div>
           </div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: scoreColor }}>UNSAFE</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: scoreColor }}>{scoreLabel}</div>
         </div>
 
         {/* Stat cards */}
@@ -113,7 +145,11 @@ export const Results: React.FC = () => {
 
           {/* Findings list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.map(f => (
+            {filtered.length === 0 ? (
+              <div style={{ padding: '32px', textAlign: 'center', color: tokens.text3, fontFamily: tokens.fontMono, fontSize: 13 }}>
+                No findings for this severity level.
+              </div>
+            ) : filtered.map(f => (
               <div
                 key={f.id}
                 className="card"
@@ -139,7 +175,7 @@ export const Results: React.FC = () => {
           </div>
         </div>
 
-        {/* Severity legend */}
+        {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="card" style={{ padding: '16px 18px' }}>
             <div style={{ fontSize: 11, fontFamily: tokens.fontMono, color: tokens.text3, letterSpacing: '0.1em', marginBottom: 12 }}>SEVERITY LEGEND</div>
@@ -150,9 +186,21 @@ export const Results: React.FC = () => {
               </div>
             ))}
           </div>
+
+          {/* Safe items (real scans only) */}
+          {scanResult && scanResult.safe_items.length > 0 && (
+            <div className="card" style={{ padding: '16px 18px' }}>
+              <div style={{ fontSize: 11, fontFamily: tokens.fontMono, color: tokens.text3, letterSpacing: '0.1em', marginBottom: 12 }}>SAFE ITEMS</div>
+              {scanResult.safe_items.map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: tokens.green, boxShadow: `0 0 5px ${tokens.green}`, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: tokens.text2 }}>{item}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
-
