@@ -55,11 +55,25 @@ const CHECKS = [
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [stream, setStream] =useState<MediaStream | null>(null)
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [progress, setProgress]   = useState(0);
   const [currentCheck, setCurrentCheck] = useState('');
   const [tick, setTick]           = useState(0);
   const [findings, setFindings]   = useState<Finding[]>([]);
+
+  // Start camera on mount
+  useEffect(() => {
+    navigator.mediaDevices.getUserMedia({ video: true }).then(s => {
+      setStream(s);
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+        videoRef.current.play();
+      }
+    }).catch(() => {});
+    return () => { stream?.getTracks().forEach(t => t.stop()); };
+  }, [])
 
   // Sweep animation tick
   useEffect(() => {
@@ -74,7 +88,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
       setProgress(p => {
         if (p >= 100) {
           clearInterval(id);
-          setScanState('complete');
+          stream?.getTracks().forEach(t => t.stop());
+          setStream(null);
+                    setScanState('complete');
           setFindings(MOCK_FINDINGS);
           return 100;
         }
@@ -89,7 +105,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
 
   const sweepAngle = (tick * 4) % 360;
 
-  const startScan = () => {
+  const startScan = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true });
+      setStream(s);
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+        videoRef.current.play();
+      }
+    } catch {
+      alert('Camera permission denied');
+    }
     setScanState('scanning');
     setProgress(0);
     setFindings([]);
@@ -97,7 +123,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
   };
 
   const resetScan = () => {
-    setScanState('idle');
+    stream?.getTracks().forEach(t => t.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setStream(null);
+        setScanState('idle');
     setProgress(0);
     setFindings([]);
   };
@@ -126,8 +155,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', border: `1px solid ${tokens.borderBright}`, background: '#000', aspectRatio: '16/9', boxShadow: '0 0 40px rgba(124,58,237,0.15)' }}>
 
-            {/* Camera feed — replace with your own implementation */}
-            <CameraFeed scanState={scanState} />
+            {/* Camera feed */}
+            {!stream && <CameraFeed scanState={scanState} />}
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1, display: stream ? 'block' : 'none' }}
+            />
 
             {/* Grid overlay */}
             <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(130,80,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(130,80,255,0.04) 1px, transparent 1px)', backgroundSize: '30px 30px', pointerEvents: 'none', zIndex: 2 }} />
