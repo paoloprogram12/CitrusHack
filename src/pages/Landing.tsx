@@ -11,7 +11,6 @@ interface LandingProps {
 interface ScanType {
   id: Page;
   label: string;
-  tag: string;
   desc: string;
   time: string;
   checks: string[];
@@ -39,8 +38,7 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
     {
       id: 'photo',
       label: 'Photo Scan',
-      tag: 'STATIC ANALYSIS',
-      desc: 'Upload or capture a photo of the room. AI analyzes the image for threats, suspicious devices, and safety hazards.',
+      desc: 'Upload or capture a photo of the room.',
       time: '~10 seconds',
       checks: ['Hidden cameras', 'Suspicious objects', 'Wiring hazards', 'Lock visibility'],
       icon: (
@@ -59,8 +57,7 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
     {
       id: 'video',
       label: 'Video Scan',
-      tag: 'MOTION ANALYSIS',
-      desc: 'Record a slow pan of your room. The AI tracks movement, detects lens reflections, and maps every corner in 3D.',
+      desc: 'Record a slow pan of your room.',
       time: '~30 seconds',
       checks: ['360° coverage', 'IR lens detection', 'RF triangulation', 'Depth mapping'],
       icon: (
@@ -78,8 +75,7 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
     {
       id: 'dashboard',
       label: 'Live Scan',
-      tag: 'REAL-TIME AI',
-      desc: 'Point your camera at any area for instant, continuous threat detection with live overlays and real-time alerts.',
+      desc: 'Point your camera at any area for instant, continuous threat detection.',
       time: '~60 seconds',
       checks: ['Live detection', 'RF sweep', 'Network audit', 'Full report'],
       icon: (
@@ -116,14 +112,6 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
 
       {/* Hero */}
       <div style={{ textAlign: 'center', padding: '52px 48px 44px', position: 'relative', zIndex: 2 }}>
-        {/* Badge */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24,
-          padding: '5px 16px', borderRadius: 20,
-          background: `${accent.primary}1a`, border: `1px solid ${accent.secondary}44`,
-        }}>
-          <span style={{ fontFamily: tokens.fontMono, fontSize: 11, color: accent.secondary, letterSpacing: '0.1em' }}>SELECT SCAN TYPE</span>
-        </div>
 
         {/* Heading + animated radar orb */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 28, marginBottom: 16 }}>
@@ -186,8 +174,6 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
               <div style={{ width: 64, height: 64, borderRadius: 14, background: `${s.color}1a`, border: `1px solid ${s.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.color, marginBottom: 22, boxShadow: isHov ? `0 0 20px ${s.color}44` : 'none', transition: 'all 0.22s' }}>
                 {s.icon}
               </div>
-
-              <div style={{ fontFamily: tokens.fontMono, fontSize: 9, color: s.color, letterSpacing: '0.14em', marginBottom: 10, opacity: 0.85 }}>{s.tag}</div>
               <h2 style={{ fontFamily: tokens.fontHead, fontSize: 22, fontWeight: 700, marginBottom: 12, letterSpacing: '-0.01em', color: tokens.text }}>{s.label}</h2>
               <p style={{ fontSize: 13, color: tokens.text2, lineHeight: 1.7, marginBottom: 24, flex: 1 }}>{s.desc}</p>
 
@@ -216,7 +202,7 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
       {/* Footer note */}
       <div style={{ textAlign: 'center', padding: '0 48px 36px', position: 'relative', zIndex: 2 }}>
         <span style={{ fontSize: 12, color: tokens.text3, fontFamily: tokens.fontMono, letterSpacing: '0.06em' }}>
-          ALL SCANS GENERATE A FULL SAFETY REPORT · DATA STAYS ON YOUR DEVICE
+          ALL SCANS GENERATE A SAFETY REPORT 
         </span>
       </div>
 

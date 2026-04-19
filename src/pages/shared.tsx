@@ -84,7 +84,6 @@ export interface Finding {
   confidence: number;
   desc: string;
   action: string;
-  time: string;
 }
 
 // ─── Sidebar Nav ──────────────────────────────────────────────────────────────
