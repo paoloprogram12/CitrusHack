@@ -40,7 +40,7 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
       id: 'photo',
       label: 'Photo Scan',
       tag: 'STATIC ANALYSIS',
-      desc: 'Upload or capture a photo of the room. AI analyzes the image for threats, suspicious devices, and safety hazards.',
+      desc: 'Upload or capture a photo of the room.',
       time: '~10 seconds',
       checks: ['Hidden cameras', 'Suspicious objects', 'Wiring hazards', 'Lock visibility'],
       icon: (
@@ -60,7 +60,7 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
       id: 'video',
       label: 'Video Scan',
       tag: 'MOTION ANALYSIS',
-      desc: 'Record a slow pan of your room. The AI tracks movement, detects lens reflections, and maps every corner in 3D.',
+      desc: 'Record a slow pan of your room.',
       time: '~30 seconds',
       checks: ['360° coverage', 'IR lens detection', 'RF triangulation', 'Depth mapping'],
       icon: (
@@ -79,7 +79,7 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
       id: 'dashboard',
       label: 'Live Scan',
       tag: 'REAL-TIME AI',
-      desc: 'Point your camera at any area for instant, continuous threat detection with live overlays and real-time alerts.',
+      desc: 'Point your camera at any area for instant, continuous threat detection.',
       time: '~60 seconds',
       checks: ['Live detection', 'RF sweep', 'Network audit', 'Full report'],
       icon: (
