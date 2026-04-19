@@ -75,6 +75,7 @@ class Threat(BaseModel):
     description: str
     location: str
     severity: str
+    bbox: list[int] | None = None
 
 
 class ScanResult(BaseModel):
@@ -84,6 +85,50 @@ class ScanResult(BaseModel):
     safe_items: list[str]
     recommendation: str
     summary: str
+
+
+DETECTION_PROMPT_TEMPLATE = """Locate each of these specific items/threats in the image: {items}
+
+Return ONLY a JSON array. Each entry must have:
+- "label": exactly one of the item names listed above
+- "box_2d": [ymin, xmin, ymax, xmax] as integers 0-1000 (0=top/left edge, 1000=bottom/right edge)
+
+Example: [{{"label": "hidden camera lens", "box_2d": [120, 450, 160, 490]}}]
+
+Only include items you can visually confirm and precisely locate. Return [] if nothing found."""
+
+
+def run_bbox_detection(client, contents: list, threat_types: list[str]) -> dict[str, list[int]]:
+    if not threat_types:
+        return {}
+    prompt = DETECTION_PROMPT_TEMPLATE.format(items=", ".join(threat_types))
+    try:
+        resp = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=contents + [prompt],
+        )
+        detections = parse_gemini_json(resp.text)
+        if not isinstance(detections, list):
+            return {}
+        result = {}
+        for d in detections:
+            if "label" in d and "box_2d" in d and isinstance(d["box_2d"], list) and len(d["box_2d"]) == 4:
+                result[d["label"].lower()] = d["box_2d"]
+        return result
+    except Exception:
+        return {}
+
+
+def merge_bboxes(threats: list[dict], bboxes: dict[str, list[int]]) -> list[dict]:
+    for threat in threats:
+        ttype = threat.get("type", "").lower()
+        matched = next((v for k, v in bboxes.items() if k in ttype or ttype in k), None)
+        if matched:
+            ymin, xmin, ymax, xmax = matched
+            threat["bbox"] = [ymin, xmin, ymax, xmax]
+        else:
+            threat["bbox"] = None
+    return threats
 
 
 def parse_gemini_json(text: str) -> dict:
@@ -127,18 +172,20 @@ async def scan_image(file: UploadFile):
     img.save(img_bytes_io, format="JPEG")
     img_bytes = img_bytes_io.getvalue()
 
+    img_part = types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[
-                types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
-                SECURITY_PROMPT,
-            ],
+            model="gemini-2.5-flash",
+            contents=[img_part, SECURITY_PROMPT],
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Gemini API error: {str(e)}")
 
-    return parse_gemini_json(response.text)
+    data = parse_gemini_json(response.text)
+    threat_types = [t.get("type", "") for t in data.get("threats", [])]
+    bboxes = run_bbox_detection(client, [img_part], threat_types)
+    data["threats"] = merge_bboxes(data.get("threats", []), bboxes)
+    return data
 
 
 @app.post("/scan/video", response_model=ScanResult)
@@ -183,13 +230,11 @@ async def scan_video(file: UploadFile):
         if gemini_file.state.name == "FAILED":
             raise HTTPException(status_code=502, detail="Gemini failed to process the video.")
 
+        video_part = types.Part.from_uri(file_uri=gemini_file.uri, mime_type=file.content_type)
         try:
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[
-                    types.Part.from_uri(file_uri=gemini_file.uri, mime_type=file.content_type),
-                    SECURITY_PROMPT,
-                ],
+                model="gemini-2.5-flash",
+                contents=[video_part, SECURITY_PROMPT],
             )
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Gemini API error: {str(e)}")
@@ -202,4 +247,8 @@ async def scan_video(file: UploadFile):
             except Exception:
                 pass  # non-fatal cleanup failure
 
-    return parse_gemini_json(response.text)
+    data = parse_gemini_json(response.text)
+    threat_types = [t.get("type", "") for t in data.get("threats", [])]
+    bboxes = run_bbox_detection(client, [video_part], threat_types)
+    data["threats"] = merge_bboxes(data.get("threats", []), bboxes)
+    return data

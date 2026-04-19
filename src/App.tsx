@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Page, Tweaks, NavInner } from './pages/shared';
+import { Page, Tweaks, NavInner, ScanResult } from './pages/shared';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
 import { Results } from './pages/Results';
@@ -124,6 +124,7 @@ const AppShell: React.FC = () => {
     return (saved as Page) ?? 'landing';
   });
   const [tweaks, setTweaks] = useState<Tweaks>(DEFAULT_TWEAKS);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [tweaksPanelOpen, setTweaksPanelOpen] = useState(false);
 
   const navigate = (p: Page) => {
@@ -155,10 +156,10 @@ const AppShell: React.FC = () => {
     switch (page) {
       case 'landing':   return <Landing      setPage={navigate} tweaks={tweaks} />;
       case 'dashboard': return <Dashboard    setPage={navigate} tweaks={tweaks} />;
-      case 'results':   return <Results />;
+      case 'results':   return <Results scanResult={scanResult} />;
 
-      case 'photo':     return <PhotoScan    setPage={navigate} />;
-      case 'video':     return <VideoScan    setPage={navigate} />;
+      case 'photo':     return <PhotoScan setPage={navigate} setScanResult={setScanResult} />;
+      case 'video':     return <VideoScan setPage={navigate} setScanResult={setScanResult} />;
       default:          return <Landing      setPage={navigate} tweaks={tweaks} />;
     }
   };
