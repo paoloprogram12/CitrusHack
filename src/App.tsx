@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Page, Tweaks, NavInner } from './pages/shared';
 import { Landing } from './pages/Landing';
 import { Dashboard } from './pages/Dashboard';
-import { Results, FindingDetail } from './pages/Results';
+import { Results } from './pages/Results';
+import { PhotoScan } from './pages/PhotoScan';
+import { VideoScan } from './pages/VideoScan';
 
 // ─── Default tweaks ────────────────────────────────────────────────────────────
 
@@ -153,8 +155,10 @@ const AppShell: React.FC = () => {
     switch (page) {
       case 'landing':   return <Landing      setPage={navigate} tweaks={tweaks} />;
       case 'dashboard': return <Dashboard    setPage={navigate} tweaks={tweaks} />;
-      case 'results':   return <Results      setPage={navigate} />;
-      case 'finding':   return <FindingDetail setPage={navigate} />;
+      case 'results':   return <Results />;
+
+      case 'photo':     return <PhotoScan    setPage={navigate} />;
+      case 'video':     return <VideoScan    setPage={navigate} />;
       default:          return <Landing      setPage={navigate} tweaks={tweaks} />;
     }
   };
