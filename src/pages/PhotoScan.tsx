@@ -38,8 +38,11 @@ export const PhotoScan: React.FC<PhotoScanProps> = ({ setPage, setScanResult }) 
 
   useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
 
+  useEffect(() => { fileRef.current?.click(); }, []);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
+    e.target.value = '';
     if (f) {
       setSelectedFile(f);
       setError(null);
@@ -198,10 +201,14 @@ export const PhotoScan: React.FC<PhotoScanProps> = ({ setPage, setScanResult }) 
                 </div>
                 <button
                   className="btn-primary"
-                  onClick={e => { e.stopPropagation(); startAnalysis(); }}
+                  onClick={e => {
+                    e.stopPropagation();
+                    if (selectedFile) startAnalysis();
+                    else fileRef.current?.click();
+                  }}
                   style={{ fontSize: 14 }}
                 >
-                  {selectedFile ? 'Analyze Photo →' : 'Select & Analyze →'}
+                  {selectedFile ? 'Analyze Photo →' : 'Select Photo →'}
                 </button>
               </div>
             )}
