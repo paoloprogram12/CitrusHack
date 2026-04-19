@@ -155,7 +155,7 @@ const AppShell: React.FC = () => {
   const renderPage = () => {
     switch (page) {
       case 'landing':   return <Landing      setPage={navigate} tweaks={tweaks} />;
-      case 'dashboard': return <Dashboard    setPage={navigate} tweaks={tweaks} />;
+      case 'dashboard': return <Dashboard    setPage={navigate} setScanResult={setScanResult} tweaks={tweaks} />;
       case 'results':   return <Results scanResult={scanResult} />;
 
       case 'photo':     return <PhotoScan setPage={navigate} setScanResult={setScanResult} />;
