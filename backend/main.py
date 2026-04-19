@@ -13,11 +13,20 @@ import time
 
 load_dotenv()
 
-app = FastAPI()
+load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="EyeSpy API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -44,19 +53,19 @@ Carefully examine the content and identify:
 
 Respond ONLY with a valid JSON object in this exact format, no other text:
 {
-    "risk_level": "LOW" or "MEDIUM" or "HIGH",
-    "risk_score": number from 0 to 100,
-    "threats": [
-        {
-            "type": "threat type",
-            "description": "what you found",
-            "location": "where in the image",
-            "severity": "LOW" or "MEDIUM" or "HIGH"
-        }
-    ],
-    "safe_items": ["item 1", "item 2"],
-    "recommendation": "one clear action for the traveler",
-    "summary": "2 sentence overview of the room security"
+  "risk_level": "LOW",
+  "risk_score": 20,
+  "threats": [
+    {
+      "type": "Suspicious device",
+      "description": "A small object appears unusually placed and may need manual inspection.",
+      "location": "Near the bed",
+      "severity": "MEDIUM"
+    }
+  ],
+  "safe_items": ["No exposed wiring visible"],
+  "recommendation": "Inspect suspicious objects manually and verify the room locks.",
+  "summary": "The room appears mostly normal, but one object may require closer inspection."
 }
 """
 
