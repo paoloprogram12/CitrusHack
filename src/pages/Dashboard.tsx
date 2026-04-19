@@ -31,14 +31,6 @@ export const CameraFeed: React.FC<CameraFeedProps> = ({ scanState }) => (
   </div>
 );
 
-// ─── Mock findings ────────────────────────────────────────────────────────────
-
-const MOCK_FINDINGS: Finding[] = [
-  { id: 1, type: 'Hidden Camera',     category: 'surveillance', severity: 'CRITICAL', location: 'Clock radio — nightstand', confidence: 97, desc: '', action: '' },
-  { id: 2, type: 'Unknown Device',    category: 'network',      severity: 'HIGH',     location: 'Air purifier — corner',    confidence: 84, desc: '', action: '' },
-  { id: 3, type: 'Smoke Detector',    category: 'fire',         severity: 'MEDIUM',   location: 'Missing in bathroom',      confidence: 99, desc: '', action: '' },
-  { id: 4, type: 'Lock Vulnerability',category: 'access',       severity: 'HIGH',     location: 'Secondary door lock',      confidence: 91, desc: '', action: '' },
-];
 
 const CHECKS = [
   'Initializing AI vision model…',
@@ -132,11 +124,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage, setScanResult }) 
           if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Scan failed');
           const result = await res.json();
           setScanResult(result);
-          setFindings(MOCK_FINDINGS);
           setScanState('complete');
         } catch (e: any) {
           setApiError(e.message || 'Backend scan failed');
-          setFindings(MOCK_FINDINGS);
           setScanState('complete');
         }
       };
