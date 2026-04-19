@@ -262,7 +262,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ setPage, setScanResult }) 
             <div className="card-bright" style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontFamily: tokens.fontMono, fontSize: 11, color: tokens.violet, letterSpacing: '0.1em', marginBottom: 4 }}>SCAN COMPLETE — {findings.length} FINDINGS</div>
-                <div style={{ fontSize: 14, color: apiError ? tokens.red : tokens.text2 }}>{apiError ?? '1 critical threat detected. Immediate action recommended.'}</div>
+                <div style={{ fontSize: 14, color: apiError ? tokens.red : tokens.text2 }}>{apiError ?? (findings.length === 0 ? 'No threats detected. Room appears safe.' : `${findings.length} threat${findings.length > 1 ? 's' : ''} detected.`)}</div>
               </div>
               <button className="btn-primary" onClick={() => setPage('results')} style={{ flexShrink: 0 }}>View Results →</button>
             </div>
