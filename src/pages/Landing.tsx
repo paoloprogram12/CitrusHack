@@ -202,7 +202,7 @@ export const Landing: React.FC<LandingProps> = ({ setPage, tweaks }) => {
       {/* Footer note */}
       <div style={{ textAlign: 'center', padding: '0 48px 36px', position: 'relative', zIndex: 2 }}>
         <span style={{ fontSize: 12, color: tokens.text3, fontFamily: tokens.fontMono, letterSpacing: '0.06em' }}>
-          ALL SCANS GENERATE A FULL SAFETY REPORT · DATA STAYS ON YOUR DEVICE
+          ALL SCANS GENERATE A SAFETY REPORT 
         </span>
       </div>
 
