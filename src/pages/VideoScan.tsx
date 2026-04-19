@@ -152,7 +152,7 @@ export const VideoScan: React.FC<VideoScanProps> = ({ setPage }) => {
 
           {phase === 'done' && (
             <button className="btn-primary" onClick={() => setPage('results')} style={{ padding: '14px', fontSize: 15, width: '100%' }}>
-              View Safety Report →
+              View Results →
             </button>
           )}
         </div>
